@@ -1,0 +1,77 @@
+<!doctype html>
+<!--
+  index.html: the STRUCTURE of the page (what's on it).
+  style.css:  how it LOOKS.     app.js: what it DOES.
+  The browser loads this file first, then fetches everything it links to.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Perturb-seq Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
+  <!-- ?v=… makes the browser fetch a fresh copy after a change: bump it when you edit these files -->
+  <link rel="stylesheet" href="style.css?v=4">
+  <!-- Plotly: the charting library, loaded from a public CDN. "defer" = run after the page is parsed -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly-basic.min.js" defer></script>
+  <script src="app.js?v=4" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Perturb-seq Explorer</h1>
+    <p class="lede">Knock down a gene with CRISPRi. Which other genes respond?</p>
+  </header>
+
+  <main>
+    <section class="controls">
+      <div class="control">
+        <label for="search">Perturbed gene</label>
+        <input id="search" list="perturbation-list" placeholder="Type a gene, e.g. GATA1" autocomplete="off">
+        <datalist id="perturbation-list"></datalist>
+      </div>
+
+      <div class="control" id="rank-control">
+        <span class="label" id="rank-label">Rank genes by</span>
+        <div class="toggle" role="radiogroup" aria-labelledby="rank-label">
+          <button type="button" data-metric="z" aria-pressed="true">Surprise</button>
+          <button type="button" data-metric="lfc" aria-pressed="false">Fold change</button>
+          <button type="button" data-metric="abs" aria-pressed="false">Absolute change</button>
+        </div>
+      </div>
+    </section>
+    <p id="dataset-note" class="note"></p>
+
+    <section id="summary" class="summary" hidden>
+      <div class="stat"><span class="stat-value" id="stat-knockdown">–</span><span class="stat-label">target knockdown</span></div>
+      <div class="stat"><span class="stat-value" id="stat-sig">–</span><span class="stat-label">genes significantly changed (FDR <span id="fdr">5%</span>)</span></div>
+      <div class="stat"><span class="stat-value" id="stat-cells">–</span><span class="stat-label">cells</span></div>
+    </section>
+
+    <section id="chart" class="chart" aria-live="polite">
+      <p class="placeholder">Pick a perturbation above to see its top affected genes.</p>
+    </section>
+
+    <div class="explain">
+      <p><b>Surprise</b> (z-score): how unusual the change is compared with the gene’s natural
+        cell-to-cell variation in control cells.</p>
+      <p><b>Fold change</b> (log<sub>2</sub> after ÷ before): how much the level moved
+        <i>relative</i> to where it started. Near-silent genes switching on score highest.</p>
+      <p><b>Absolute change</b> (after − before, per cell): how much the level moved in
+        <i>absolute</i> terms. Abundant genes, such as ribosomal proteins, score highest.</p>
+      <p>Fold and absolute changes are approximated from the published per-gene means.</p>
+      <p>Solid bars are significant at FDR <span class="fdr-copy">5%</span> against a null built
+        from the non-targeting control cells (scaled by cell number); faded bars are not.
+        Hover a bar for before → after.</p>
+    </div>
+  </main>
+
+  <footer>
+    Data: <a href="https://doi.org/10.1016/j.cell.2022.05.013">Replogle et al. 2022, <i>Cell</i></a>,
+    processed files from <a href="https://doi.org/10.25452/figshare.plus.20029387">Figshare+</a>
+    (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), summarised for this site.
+    Built by <a href="https://annacuomo.github.io">Anna Cuomo</a>.
+  </footer>
+</body>
+</html>

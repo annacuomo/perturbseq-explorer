@@ -1,0 +1,11 @@
+name: perturbseq-explorer
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - pandas
+  - anndata
+  - h5py
+  - requests
+  - tqdm

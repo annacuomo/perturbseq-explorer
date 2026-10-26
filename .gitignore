@@ -1,0 +1,17 @@
+# raw data: big, re-downloadable, never committed
+raw/
+*.h5ad
+*.h5
+*.mtx*
+
+# python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+
+# os / editors
+.DS_Store
+.vscode/
+.idea/
+*.cache.pkl
