@@ -157,8 +157,18 @@ first chart (2.35.2 isn't hosted; 2.35.3 is).
 **One-time setup**
 
 1. On github.com: **New repository** → name `perturbseq-explorer` → Public →
-   do **not** tick "Add a README" (we already have one) → Create.
-2. In the terminal, from the `perturbseq-explorer` folder:
+   tick **nothing** (no README, .gitignore or licence: we have them, and an
+   extra commit on GitHub makes the first push fail) → Create.
+2. In the new repo: **Settings → Pages → Source: GitHub Actions**. Do this
+   *before* pushing, otherwise the first deploy fails with "Get Pages site
+   failed" (if that happens: enable it now, then Actions → the failed run →
+   Re-run jobs).
+3. Use GitHub's private email for commits: copy the
+   `…@users.noreply.github.com` address from github.com/settings/emails, then
+   `git config --global user.email "that-address"`. (If you already committed
+   with your personal email, GitHub will refuse the push; fix with
+   `git commit --amend --reset-author --no-edit`.)
+4. In the terminal, from the `perturbseq-explorer` folder:
    ```bash
    git init
    git add .
@@ -170,8 +180,7 @@ first chart (2.35.2 isn't hosted; 2.35.3 is).
    ```
    If the push asks for a password, GitHub needs a token or the GitHub CLI:
    `brew install gh && gh auth login` is the easiest route.
-3. On github.com, in the repo: **Settings → Pages → Source: GitHub Actions**.
-4. **Actions** tab: watch the "Deploy app to GitHub Pages" run go green (~1 min).
+5. **Actions** tab: watch the "Deploy app to GitHub Pages" run go green (~1 min).
    The URL appears there and under Settings → Pages.
 
 **Every change after that**
