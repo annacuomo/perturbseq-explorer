@@ -13,13 +13,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
   <!-- ?v=… makes the browser fetch a fresh copy after a change: bump it when you edit these files -->
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
   <!-- Plotly: the charting library, loaded from a public CDN. "defer" = run after the page is parsed -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly-basic.min.js" defer></script>
   <script src="app.js?v=4" defer></script>
 </head>
 <body>
   <header>
+    <nav class="top-nav" aria-label="Pages">
+      <a href="./" aria-current="page">Explorer</a>
+      <a href="about.html">About &amp; methods</a>
+      <a href="https://annacuomo.github.io/projects/">More projects</a>
+    </nav>
     <h1>Perturb-seq Explorer</h1>
     <p class="lede">Knock down a gene with CRISPRi. Which other genes respond?</p>
   </header>
@@ -63,7 +68,8 @@
       <p>Fold and absolute changes are approximated from the published per-gene means.</p>
       <p>Solid bars are significant at FDR <span class="fdr-copy">5%</span> against a null built
         from the non-targeting control cells (scaled by cell number); faded bars are not.
-        Hover a bar for before → after.</p>
+        Hover a bar for before → after.
+        <a href="about.html#methods">How these numbers are calculated</a>.</p>
     </div>
   </main>
 
