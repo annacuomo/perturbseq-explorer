@@ -141,3 +141,30 @@ footer {
   padding-bottom: 40px;
 }
 a { color: var(--teal); }
+
+/* ---------- Page links at the top (both pages) ---------- */
+.top-nav { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-bottom: 20px; font-size: 0.95rem; }
+.top-nav a { color: var(--ink); text-decoration: none; font-weight: 600; padding: 4px 0; }
+.top-nav a:hover, .top-nav a[aria-current="page"] {
+  color: var(--teal);
+  text-decoration: underline; text-decoration-color: var(--mustard);
+  text-decoration-thickness: 3px; text-underline-offset: 6px;
+}
+
+/* ---------- About page: long text ---------- */
+.toc { font-size: 0.95rem; margin: -16px 0 24px; }
+.prose h2:first-child { margin-top: 8px; }
+.prose h2 { font-family: "Fraunces", Georgia, serif; color: var(--teal); font-size: 1.6rem; margin: 40px 0 12px; }
+.prose h3 { font-family: "Fraunces", Georgia, serif; font-size: 1.15rem; margin: 28px 0 8px; }
+.prose p, .prose li { max-width: 70ch; }
+.prose li { margin-bottom: 8px; }
+.prose code { font-size: 0.88em; background: #F1ECE3; padding: 1px 5px; border-radius: 4px; }
+.prose .why { color: var(--muted); font-size: 0.95rem; border-left: 3px solid var(--mustard); padding-left: 12px; }
+.prose .math { overflow-x: auto; }
+.table-wrap { overflow-x: auto; margin: 8px 0 20px; }
+.prose table { border-collapse: collapse; font-size: 0.92rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+.prose th, .prose td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.prose th { font-weight: 600; background: #F4F9F9; }
+.prose table.num td + td { text-align: right; font-variant-numeric: tabular-nums; }
+.prose tr:last-child td { border-bottom: 0; }
+footer { padding-top: 24px; }
