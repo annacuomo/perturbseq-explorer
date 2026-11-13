@@ -10,16 +10,20 @@ Row names in the Replogle bulk files look like
     10023_ZC3H18_P1P2_ENSG00000158545
     <id>_<gene symbol>_<TSS>_<Ensembl gene id>
 
-Three ways to rank genes, all stored so the app can switch between them:
-  z    the matrix value: change relative to the gene's noise in control cells
-       ("how surprising"). Favours quiet genes switching on.
-  lfc  approximate log2 fold change ("how big"). Uses the per-gene mean and std
-       stored in the file's var table to undo the z-scaling:
+Which genes are stored per perturbation:
+  the top `--top` SIGNIFICANT genes up and down, ranked by approximate log2
+  fold change (lfc). lfc undoes the file's z-scaling with the per-gene mean
+  and std stored in the var table:
            after ~= mean + z * std,   lfc = log2((after + pc) / (mean + pc))
-       Relative, so near-silent genes switching on still rank high.
-  abs  approximate absolute change per cell: after - mean. Favours abundant genes.
-  lfc and abs are APPROXIMATE: they assume var['mean'], var['std'] describe
-  control cells on one scale.
+  It is APPROXIMATE: it assumes var['mean'], var['std'] describe control
+  cells on one scale. z (the matrix value) and the absolute change per cell
+  are stored too, for the hover text.
+
+Gene set enrichment (optional, needs gene set files from
+`01_download.py --genesets`): for each perturbation, the top `--enrich-top`
+significant genes up, and separately down, are tested for over-representation
+in each gene set (hypergeometric test, background = all measured genes,
+Benjamini-Hochberg across sets). See enrichment() below.
 """
 
 import argparse
@@ -153,6 +157,102 @@ def calibrate(x_ctrl, n_ctrl, fdr):
     return np.array(hits)
 
 
+# ---------------------------------------------------------------- gene set enrichment
+#
+# Over-representation analysis. For one gene list L (e.g. the top 100 genes
+# going up) and one gene set S, with U = all measured genes (the background):
+#     k = |L ∩ S|,  n = |S ∩ U|,  N = |L|,  M = |U|
+# Under the null that L is a random draw of N genes from U, k is
+# hypergeometric, and p = P(K >= k). Benjamini-Hochberg is applied across all
+# gene sets tested for that list. The background matters: K562 expresses only
+# some genes, so testing against the whole genome would make any "expressed in
+# K562" gene set look enriched.
+
+LIBRARY_LABELS = {"MSigDB_Hallmark": "Hallmark", "GO_Biological_Process": "GO BP"}
+
+
+def read_genesets(paths):
+    """Read Enrichr-style text libraries: one set per line, 'TERM<tab><tab>GENE<tab>GENE...'.
+
+    Returns a list of (library label, term, set of gene symbols).
+    """
+    out = []
+    for path in paths:
+        path = Path(path)
+        label = next((v for k, v in LIBRARY_LABELS.items() if path.stem.startswith(k)), path.stem)
+        for line in path.read_text().splitlines():
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 3:
+                continue
+            term = fields[0].strip()
+            genes = {g.split(",")[0].strip().upper() for g in fields[1:] if g.strip()}
+            out.append((label, term, genes))
+    return out
+
+
+class EnrichmentResults(list):
+    """A list of per-gene-list results that also remembers how many sets were tested."""
+    n_sets = 0
+
+
+def enrichment(lists, universe, genesets, fdr=0.05, min_size=10, max_size=500,
+               min_overlap=3, keep=5, chunk=256):
+    """Over-representation of each gene list in each gene set.
+
+    lists:    list of gene-symbol lists (one per perturbation and direction)
+    universe: all measured gene symbols (the background)
+    genesets: output of read_genesets()
+    Returns, per list, up to `keep` significant sets (q < fdr, overlap >= min_overlap),
+    best first: {"lib", "term", "k", "n_list", "set_size", "q", "genes"}.
+    """
+    from scipy.sparse import csr_matrix
+    from scipy.stats import hypergeom
+
+    universe = list(dict.fromkeys(str(g).upper() for g in universe))
+    pos = {g: j for j, g in enumerate(universe)}
+    M = len(universe)
+
+    # gene sets restricted to the background, kept if not too small or too large
+    sets = []
+    for lib, term, genes in genesets:
+        members = sorted(pos[g] for g in genes if g in pos)
+        if min_size <= len(members) <= max_size:
+            sets.append((lib, term, members))
+    results = EnrichmentResults([[] for _ in lists])
+    results.n_sets = len(sets)
+    if not sets:
+        return results
+
+    # genes x sets membership matrix, so overlaps for many lists are one matrix product
+    G = csr_matrix((np.ones(sum(len(m) for *_, m in sets)),
+                    (np.concatenate([m for *_, m in sets]),
+                     np.repeat(np.arange(len(sets)), [len(m) for *_, m in sets]))),
+                   shape=(M, len(sets)))
+    set_size = np.asarray(G.sum(axis=0)).ravel()
+
+    for start in range(0, len(lists), chunk):
+        block = lists[start:start + chunk]
+        idx = [[pos[g] for g in dict.fromkeys(str(x).upper() for x in L) if g in pos] for L in block]
+        rows = np.repeat(np.arange(len(idx)), [len(i) for i in idx])
+        L = csr_matrix((np.ones(len(rows)), (rows, np.concatenate(idx) if rows.size else rows)),
+                       shape=(len(idx), M))
+        K = np.asarray((L @ G).todense())                      # overlaps, lists x sets
+        N = np.array([len(i) for i in idx])[:, None]
+        P = hypergeom.sf(K - 1, M, set_size[None, :], N)       # P(overlap >= k)
+        P[N[:, 0] == 0] = np.nan
+        Q = bh(P)
+        for r, members in enumerate(idx):
+            ok = np.flatnonzero((Q[r] < fdr) & (K[r] >= min_overlap))
+            best = ok[np.argsort(P[r, ok])][:keep]
+            in_list = set(members)
+            results[start + r] = [{
+                "lib": sets[j][0], "term": sets[j][1], "k": int(K[r, j]), "n_list": len(members),
+                "set_size": int(set_size[j]), "q": float(f"{Q[r, j]:.2g}"),
+                "genes": [universe[g] for g in sets[j][2] if g in in_list][:12],
+            } for j in best]
+    return results
+
+
 # ---------------------------------------------------------------- summarise
 def safe_id(label: str) -> str:
     """Make a label safe to use as a filename and URL fragment."""
@@ -169,9 +269,11 @@ def top_k(M: np.ndarray, k: int, largest: bool) -> np.ndarray:
     return np.argsort(key, axis=1)[:, :k]
 
 
-def summarise(expr, meta, genes, top=30, fdr=0.05, pseudocount=0.1):
-    """Per perturbation: knockdown, significance, and a list of the most
-    affected genes (top `top` up and down by each of z and lfc, merged).
+def summarise(expr, meta, genes, top=30, fdr=0.05, pseudocount=0.1,
+              enrich_top=100, genesets=None, enrich_opts=None):
+    """Per perturbation: knockdown, significance, the most affected genes
+    (top `top` significant genes up and down by fold change) and, if gene sets
+    are given, enrichment of the top `enrich_top` genes each way.
 
     Returns (index_entries, records, info).
     """
@@ -230,16 +332,28 @@ def summarise(expr, meta, genes, top=30, fdr=0.05, pseudocount=0.1):
     else:
         AFTER = LFC = ABS = np.full_like(Z, np.nan)
 
-    # --- candidate genes: top up/down by each ranking, merged
-    picks = [top_k(Z, top, False), top_k(Z, top, True)]
-    if has_fc:
-        picks += [top_k(LFC, top, False), top_k(LFC, top, True),
-                  top_k(ABS, top, False), top_k(ABS, top, True)]
-    picks = np.concatenate(picks, axis=1)
+    # --- genes to store: the strongest SIGNIFICANT changes up and down,
+    #     ranked by fold change (by z when fold change is not available)
+    RANK = np.where(SIG, LFC if has_fc else Z, np.nan)
+    UP, DOWN = np.where(RANK > 0, RANK, np.nan), np.where(RANK < 0, RANK, np.nan)  # one direction each
+    up_cols, down_cols = top_k(UP, top, True), top_k(DOWN, top, False)
+    picks = np.concatenate([down_cols, up_cols], axis=1)
+
+    # --- gene set enrichment on longer lists (top `enrich_top` each way)
+    enrich_up, enrich_down = top_k(UP, enrich_top, True), top_k(DOWN, enrich_top, False)
+    enrichment_results = None
+    if genesets:
+        lists = [[symbols[k] for k in row if np.isfinite(RANK[i, k]) and RANK[i, k] > 0]
+                 for i, row in enumerate(enrich_up)]
+        lists += [[symbols[k] for k in row if np.isfinite(RANK[i, k]) and RANK[i, k] < 0]
+                  for i, row in enumerate(enrich_down)]
+        res = enrichment(lists, symbols, genesets, fdr=fdr, **(enrich_opts or {}))
+        enrichment_results = list(zip(res[:len(rows)], res[len(rows):]))
+        info["enrichment_sets_tested"] = res.n_sets
 
     records, index_entries = [], []
     for i, (m, label) in enumerate(zip(rows, labels)):
-        cols = [k for k in dict.fromkeys(picks[i]) if np.isfinite(Z[i, k])]
+        cols = [k for k in dict.fromkeys(picks[i]) if np.isfinite(RANK[i, k])]
         gene_list = [{
             "gene": str(symbols[k]),
             "z": r(Z[i, k], 3),
@@ -249,7 +363,13 @@ def summarise(expr, meta, genes, top=30, fdr=0.05, pseudocount=0.1):
             "after": r(AFTER[i, k], 2),
             "sig": bool(SIG[i, k]),
         } for k in cols]
-        gene_list.sort(key=lambda d: d["z"])
+        gene_list.sort(key=lambda d: d["lfc"] if d["lfc"] is not None else d["z"])
+
+        # gene lists for the "explore in Enrichr" buttons, and precomputed enrichment
+        top_lists = {
+            "up": [str(symbols[k]) for k in enrich_up[i] if np.isfinite(RANK[i, k]) and RANK[i, k] > 0],
+            "down": [str(symbols[k]) for k in enrich_down[i] if np.isfinite(RANK[i, k]) and RANK[i, k] < 0],
+        }
 
         fold = m["fold_expr"]
         knockdown_pct = None if pd.isna(fold) else round(100 * (1 - float(fold)))
@@ -262,6 +382,9 @@ def summarise(expr, meta, genes, top=30, fdr=0.05, pseudocount=0.1):
             "id": label, "target": m["target"], "target_id": m["target_id"], "tss": m["tss"],
             "n_cells": n_cells, "knockdown_pct": knockdown_pct, "knockdown_z": r(knockdown_z[i], 3),
             "n_sig": n_sig, "paper_de_genes": paper, "genes": gene_list,
+            "top_lists": top_lists,
+            **({"enrichment": {"up": enrichment_results[i][0], "down": enrichment_results[i][1]}}
+               if enrichment_results is not None else {}),
         })
         index_entries.append({
             "id": label, "file": f"perturbations/{safe_id(label)}.json",
@@ -294,7 +417,10 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("h5ad", type=Path)
     p.add_argument("--dataset", default="K562_essential")
-    p.add_argument("--top", type=int, default=30, help="genes kept per direction, per ranking")
+    p.add_argument("--top", type=int, default=30, help="significant genes kept per direction for the chart")
+    p.add_argument("--enrich-top", type=int, default=100, help="genes per direction tested for enrichment")
+    p.add_argument("--genesets", type=Path, nargs="*", default=None,
+                   help="gene set files (default: every .txt in raw/genesets/, from 01_download.py --genesets)")
     p.add_argument("--fdr", type=float, default=0.05, help="BH FDR for calling a gene changed")
     p.add_argument("--pseudocount", type=float, default=0.1, help="added before taking log2 fold change")
     p.add_argument("--cells-col", default="num_cells_filtered")
@@ -304,8 +430,14 @@ if __name__ == "__main__":
 
     expr, meta, genes = load_matrix(args.h5ad, args.cells_col, use_cache=not args.no_cache)
     tick(f"{expr.shape[0]} rows x {expr.shape[1]} genes")
+    gs_paths = args.genesets if args.genesets is not None else sorted(
+        (Path(__file__).resolve().parent.parent / "raw" / "genesets").glob("*.txt"))
+    genesets = read_genesets(gs_paths) if gs_paths else None
+    tick(f"gene sets: {len(genesets)} read from {len(gs_paths)} file(s)" if genesets
+         else "no gene set files found: skipping enrichment (run 01_download.py --genesets)")
     index_entries, records, info = summarise(expr, meta, genes, top=args.top,
-                                             fdr=args.fdr, pseudocount=args.pseudocount)
+                                             fdr=args.fdr, pseudocount=args.pseudocount,
+                                             enrich_top=args.enrich_top, genesets=genesets)
     tick("summarised")
 
     n_sig = np.array([rec["n_sig"] for rec in records if rec["n_sig"] is not None])
@@ -322,7 +454,12 @@ if __name__ == "__main__":
         print(f"    paper's Anderson-Darling DE counts: median {np.median(pairs[:, 1]):.0f},"
               f" 90th pct {np.quantile(pairs[:, 1], 0.9):.0f}, max {pairs[:, 1].max():.0f}")
         print(f"    Spearman correlation, ours vs paper's: {rho:.2f}")
-    print(f"    fold change available: {info['has_fold_change']}\n")
+    print(f"    fold change available: {info['has_fold_change']}")
+    if "enrichment_sets_tested" in info:
+        hits = [len(rec["enrichment"][d]) > 0 for rec in records for d in ("up", "down")]
+        print(f"    enrichment: {info['enrichment_sets_tested']} gene sets tested; "
+              f"{np.mean(hits):.0%} of gene lists have at least one enriched set")
+    print()
 
     write_json(index_entries, records, args.out, {
         "dataset": args.dataset,
@@ -332,5 +469,7 @@ if __name__ == "__main__":
         "fdr": args.fdr,
         "pseudocount": args.pseudocount,
         "has_fold_change": info["has_fold_change"],
+        "enrich_top": args.enrich_top,
+        "genesets": [p.stem for p in gs_paths] if genesets else [],
         "null": info,
     })

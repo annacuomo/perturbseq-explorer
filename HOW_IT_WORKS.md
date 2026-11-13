@@ -35,8 +35,8 @@ files. That's why it can be hosted free on GitHub Pages.
 3. `app.js` runs. Its `init()` function requests `data/index.json` (the list of
    2,176 perturbations) and fills the search box suggestions.
 4. You pick GATA1 → `select()` requests `data/perturbations/GATA1.json` (~8 KB).
-5. `draw()` sorts those genes by the chosen metric and hands them to Plotly,
-   which draws the SVG chart.
+5. `draw()` sorts the significant genes by fold change and hands them to Plotly,
+   which draws the SVG chart; `showEnrichment()` fills the panel under it.
 
 So the visitor only ever downloads the index plus one small file per gene they
 look at, never the full dataset.
@@ -47,8 +47,8 @@ look at, never the full dataset.
 
 | File | Role | Python-world analogy |
 |---|---|---|
-| `index.html` | **Structure**: what's on the page (title, search box, toggle, empty chart box) | the layout of a figure: which panels exist |
-| `style.css` | **Appearance**: colours, fonts, spacing, the toggle's look | a matplotlib style sheet / rcParams |
+| `index.html` | **Structure**: what's on the page (title, search box, empty chart box, enrichment panel) | the layout of a figure: which panels exist |
+| `style.css` | **Appearance**: colours, fonts, spacing, the look of buttons and panels | a matplotlib style sheet / rcParams |
 | `app.js` | **Behaviour**: download data, react to clicks, draw the chart | your script |
 
 They connect through **ids**. In `index.html`, `<section id="chart">` is the
@@ -78,7 +78,7 @@ variables (`--teal: #1B6B73`) and reused as `var(--teal)`, like constants.
 Two ideas with no exact Python equivalent:
 
 - **Events.** The page doesn't run top to bottom and finish. It sets up
-  *listeners* ("when the toggle is clicked, call `setMetric`") and then waits.
+  *listeners* ("when the Enrichr button is clicked, call `openEnrichr`") and then waits.
 - **`async` / `await`.** Downloads are slow, so `fetch` returns a promise of a
   result; `await` pauses that function (not the whole page) until it arrives.
 

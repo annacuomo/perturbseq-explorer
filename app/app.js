@@ -1,33 +1,28 @@
 // app.js: everything the page DOES.
 //
 // The flow:
-//   1. init()       runs once when the page opens: downloads data/index.json
-//                   (the list of perturbations) and wires up the controls.
-//   2. select(id)   runs when you pick a gene: downloads that gene's JSON file.
-//   3. draw()       turns the current record + ranking choice into a chart.
+//   1. init()        runs once when the page opens: downloads data/index.json
+//                    (the list of perturbations) and wires up the controls.
+//   2. select(id)    runs when you pick a gene: downloads that gene's JSON file.
+//   3. draw()        turns the current record into the bar chart.
+//   4. showEnrichment() fills the "What do these genes have in common?" panel.
+//   5. openEnrichr() sends a gene list to the Enrichr website.
 //
 // Python analogies are in the comments where they help.
 
 // ---------------------------------------------------------------- settings
 // "const" = a variable that is never reassigned (like a module-level CONSTANT).
 const COLORS = {
-  down: "#1B6B73", downFaint: "#8CCBCF",
-  up: "#7A2E4D", upFaint: "#C98BA6",
+  down: "#1B6B73", up: "#7A2E4D",
   grid: "#E8E1D5", ink: "#2A2A2A",
 };
 const SHOW_PER_SIDE = 20; // bars shown in each direction
-
-const METRICS = {
-  z:   { label: "change in expression (z-score vs controls)" },
-  lfc: { label: "log2 fold change (approximate)" },
-  abs: { label: "change in expression per cell (approximate)" },
-};
+const ENRICHR = "https://maayanlab.cloud/Enrichr";
 
 // ---------------------------------------------------------------- state
 // "let" = a variable that can change. These hold what the page currently shows.
 let index = null;        // contents of data/index.json
 let current = null;      // the perturbation record currently displayed
-let metric = "z";        // "z" or "lfc"
 const byId = new Map();  // like a Python dict: "GATA1" -> index entry
 
 // $("chart") is shorthand for "find the element with id='chart' in index.html"
@@ -70,15 +65,13 @@ async function init() {
   // event listeners: "when X happens, call this function" (callbacks)
   $("search").addEventListener("change", (e) => select(e.target.value));
   $("search").addEventListener("keydown", (e) => { if (e.key === "Enter") select(e.target.value); });
-
-  for (const btn of document.querySelectorAll(".toggle button")) {
-    if (btn.dataset.metric !== "z" && !index.has_fold_change) btn.disabled = true;
-    btn.addEventListener("click", () => setMetric(btn.dataset.metric));
+  for (const btn of document.querySelectorAll("button.enrichr")) {
+    btn.addEventListener("click", () => openEnrichr(btn.dataset.direction));
   }
 
-  // the part of the URL after # remembers the view, e.g. ...#GATA1&lfc
-  const [hashId, hashMetric] = decodeURIComponent(location.hash.slice(1)).split("&");
-  if (hashMetric in METRICS) setMetric(hashMetric, false);
+  // the part of the URL after # remembers the gene, e.g. ...#GATA1
+  // (older links like #GATA1&lfc still work: the part after & is ignored)
+  const [hashId] = decodeURIComponent(location.hash.slice(1)).split("&");
   if (hashId) { $("search").value = hashId; select(hashId); }
 }
 
@@ -90,19 +83,14 @@ async function select(query) {
   if (!entry) {
     showMessage(`No perturbation called “${query}” in this screen.`);
     $("summary").hidden = true;
+    $("enrichment").hidden = true;
     return;
   }
   current = await (await fetch("data/" + entry.file)).json();
+  history.replaceState(null, "", "#" + encodeURIComponent(current.id));
   showSummary(current);
   draw();
-}
-
-function setMetric(m, redraw = true) {
-  metric = m;
-  for (const btn of document.querySelectorAll(".toggle button")) {
-    btn.setAttribute("aria-pressed", String(btn.dataset.metric === m));
-  }
-  if (redraw && current) draw();
+  showEnrichment(current);
 }
 
 function showSummary(rec) {
@@ -114,6 +102,16 @@ function showSummary(rec) {
   $("stat-cells").textContent = rec.n_cells == null ? "n/a" : rec.n_cells.toLocaleString();
 }
 
+// The genes behind the chart: significant ones only, ranked by fold change.
+// (Files made before the pipeline change also hold non-significant genes, so filter here too.)
+function significantGenes(rec) {
+  const sig = rec.genes.filter((d) => d.sig && d.lfc != null);
+  return {
+    down: sig.filter((d) => d.lfc < 0).sort((a, b) => a.lfc - b.lfc),   // most negative first
+    up: sig.filter((d) => d.lfc > 0).sort((a, b) => b.lfc - a.lfc),     // most positive first
+  };
+}
+
 // ---------------------------------------------------------------- 3. the chart
 function draw() {
   if (typeof Plotly === "undefined") {
@@ -122,38 +120,30 @@ function draw() {
     return;
   }
   const rec = current;
-  history.replaceState(null, "", "#" + encodeURIComponent(rec.id) + (metric === "z" ? "" : "&" + metric));
-
-  // pick the top genes by the chosen metric. In pandas this would be roughly:
-  //   df = df[df[metric].notna()]
-  //   down = df[df[metric] < 0].nsmallest(N, metric)
-  //   up   = df[df[metric] > 0].nlargest(N, metric)
-  const valid = rec.genes.filter((d) => d[metric] != null);
-  const down = valid.filter((d) => d[metric] < 0).sort((a, b) => a[metric] - b[metric]).slice(0, SHOW_PER_SIDE);
-  const up = valid.filter((d) => d[metric] > 0).sort((a, b) => b[metric] - a[metric]).slice(0, SHOW_PER_SIDE);
+  const { down, up } = significantGenes(rec);
+  if (down.length + up.length === 0) {
+    showMessage(`No gene changes significantly when <b>${rec.target}</b> is knocked down.`);
+    return;
+  }
 
   // Plotly draws the first row at the BOTTOM, so order bottom-to-top:
   // strongest down ... weakest down, weakest up ... strongest up
-  const rows = [...down, ...up.reverse()];   // ... "spreads" lists, like down + up[::-1]
+  const rows = [...down.slice(0, SHOW_PER_SIDE), ...up.slice(0, SHOW_PER_SIDE).reverse()];
 
-  const color = (d) => d[metric] < 0 ? (d.sig ? COLORS.down : COLORS.downFaint)
-                                     : (d.sig ? COLORS.up : COLORS.upFaint);
   const fmtLevel = (v) => (v == null ? "?" : v < 10 ? v.toFixed(2) : v.toFixed(1));
-
   // the text shown when you hover a bar (Plotly understands <b> and <br>)
   const hover = rows.map((d) =>
-    `<b>${d.gene}</b>${d.sig ? "" : " (not significant)"}<br>` +
-    `z-score: ${d.z.toFixed(2)}<br>` +
-    (d.lfc != null ? `log2 fold change: ${d.lfc.toFixed(2)}<br>` +
-      `approx. per cell: ${fmtLevel(d.before)} → ${fmtLevel(d.after)}` +
-      ` (${d.abs > 0 ? "+" : ""}${fmtLevel(d.abs)})` : ""));
+    `<b>${d.gene}</b><br>` +
+    `log2 fold change: ${d.lfc > 0 ? "+" : ""}${d.lfc.toFixed(2)}<br>` +
+    `approx. per cell: ${fmtLevel(d.before)} → ${fmtLevel(d.after)}<br>` +
+    `z-score: ${d.z.toFixed(2)}`);
 
   const trace = {
     type: "bar",
     orientation: "h",
-    x: rows.map((d) => d[metric]),   // like [d[metric] for d in rows]
+    x: rows.map((d) => d.lfc),       // like [d["lfc"] for d in rows]
     y: rows.map((d) => d.gene),
-    marker: { color: rows.map(color) },
+    marker: { color: rows.map((d) => (d.lfc < 0 ? COLORS.down : COLORS.up)) },
     text: hover,
     textposition: "none",            // use the text for hovering only, not as bar labels
     hovertemplate: "%{text}<extra></extra>",
@@ -162,9 +152,10 @@ function draw() {
   const layout = {
     title: { text: `Knocking down <b>${rec.target}</b>`, font: { family: "Fraunces, serif", size: 20 } },
     font: { family: "Manrope, sans-serif", color: COLORS.ink },
-    height: Math.max(360, rows.length * 20 + 110),
+    height: Math.max(300, rows.length * 20 + 110),
     margin: { l: 90, r: 24, t: 56, b: 56 },
-    xaxis: { title: METRICS[metric].label, zeroline: true, zerolinecolor: COLORS.ink, gridcolor: COLORS.grid },
+    xaxis: { title: "log2 fold change vs controls (approximate)", zeroline: true,
+             zerolinecolor: COLORS.ink, gridcolor: COLORS.grid },
     // list every gene explicitly, otherwise Plotly hides every other label
     yaxis: { automargin: true, tickfont: { size: 11 }, type: "category",
              tickmode: "array", tickvals: rows.map((d) => d.gene), ticktext: rows.map((d) => d.gene) },
@@ -176,6 +167,91 @@ function draw() {
 
   $("chart").innerHTML = "";
   Plotly.newPlot("chart", [trace], layout, { responsive: true, displaylogo: false });
+}
+
+// ---------------------------------------------------------------- 4. enrichment panel
+// The gene list sent to Enrichr: the pipeline's top list if present,
+// otherwise the significant genes in this file.
+function geneList(rec, direction) {
+  return rec.top_lists?.[direction] ?? significantGenes(rec)[direction].map((d) => d.gene);
+}
+
+// "mitochondrial translation (GO:0032543)" -> ["mitochondrial translation", "GO:0032543"]
+function splitTerm(term) {
+  const m = term.match(/^(.*?)\s*\((GO:\d+)\)$/);
+  return m ? [m[1], m[2]] : [term, null];
+}
+
+// Escape text before putting it into HTML (gene and term names come from data files).
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function showEnrichment(rec) {
+  $("enrichment").hidden = false;
+  $("enrichr-status").textContent = "";
+  const hasPrecomputed = rec.enrichment != null;
+  const nTop = index.enrich_top ?? 100;
+  $("enrichment-note").textContent = hasPrecomputed
+    ? `Gene sets over-represented among the top ${nTop} significant genes in each direction ` +
+      `(Hallmark and GO biological process; background: all ${index.n_genes_measured.toLocaleString()} measured genes).`
+    : "Send the significant genes to Enrichr to see which pathways and processes they share.";
+
+  for (const direction of ["up", "down"]) {
+    const col = $(`enrich-${direction}`);
+    const genes = geneList(rec, direction);
+    const ol = col.querySelector("ol");
+    const btn = col.querySelector("button");
+    btn.disabled = genes.length === 0;
+    btn.textContent = genes.length ? `Explore these ${genes.length} genes in Enrichr ↗` : "No genes to explore";
+
+    if (!hasPrecomputed) { ol.innerHTML = ""; continue; }
+    const terms = rec.enrichment[direction];
+    if (genes.length < 5) {
+      ol.innerHTML = `<li class="empty">Too few significant genes to test.</li>`;
+    } else if (terms.length === 0) {
+      ol.innerHTML = `<li class="empty">No gene set passes q &lt; ${Math.round((index.fdr ?? 0.05) * 100) / 100}.</li>`;
+    } else {
+      // one <li> per enriched gene set: name, source, overlap, q-value, and the genes involved
+      ol.innerHTML = terms.map((t) => {
+        const [name, goId] = splitTerm(t.term);
+        return `<li>
+          <span class="term" title="${esc(goId ?? t.term)}">${esc(name)}</span>
+          <span class="lib">${esc(t.lib)}</span>
+          <span class="meta">${t.k} of ${t.n_list} genes · q = ${t.q.toPrecision(2)}</span>
+          <span class="genes">${t.genes.map(esc).join(", ")}${t.k > t.genes.length ? ", …" : ""}</span>
+        </li>`;
+      }).join("");
+    }
+  }
+}
+
+// ---------------------------------------------------------------- 5. Enrichr
+// Enrichr's API: POST the list to /addList, get back a short id, open /enrich?dataset=<id>.
+// The new tab is opened straight away (browsers block pop-ups opened later, after a download),
+// then pointed at the results once Enrichr answers.
+async function openEnrichr(direction) {
+  const rec = current;
+  const genes = geneList(rec, direction);
+  const tab = window.open("about:blank", "_blank");
+  $("enrichr-status").textContent = "Sending the list to Enrichr…";
+  try {
+    const form = new FormData();                  // like the data= of requests.post
+    form.append("list", genes.join("\n"));
+    form.append("description", `${rec.id} knockdown, genes going ${direction} (Replogle 2022 K562)`);
+    const res = await fetch(`${ENRICHR}/addList`, { method: "POST", body: form });
+    if (!res.ok) throw new Error(res.status);
+    const { shortId } = await res.json();
+    if (tab) tab.location = `${ENRICHR}/enrich?dataset=${shortId}`;
+    else window.open(`${ENRICHR}/enrich?dataset=${shortId}`, "_blank");
+    $("enrichr-status").textContent = "";
+  } catch (err) {
+    // plan B: put the genes on the clipboard and open Enrichr's front page to paste them
+    let copied = false;
+    try { await navigator.clipboard.writeText(genes.join("\n")); copied = true; } catch (e) { /* clipboard blocked */ }
+    if (tab) tab.location = `${ENRICHR}/`;
+    $("enrichr-status").textContent = copied
+      ? "Couldn’t send the list automatically. The genes are on your clipboard: paste them into Enrichr’s box."
+      : `Couldn’t send the list automatically. Paste these genes into Enrichr: ${genes.join(", ")}`;
+  }
 }
 
 init();

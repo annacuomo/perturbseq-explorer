@@ -13,10 +13,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
   <!-- ?v=… makes the browser fetch a fresh copy after a change: bump it when you edit these files -->
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
   <!-- Plotly: the charting library, loaded from a public CDN. "defer" = run after the page is parsed -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly-basic.min.js" defer></script>
-  <script src="app.js?v=4" defer></script>
+  <script src="app.js?v=5" defer></script>
 </head>
 <body>
   <header>
@@ -37,14 +37,6 @@
         <datalist id="perturbation-list"></datalist>
       </div>
 
-      <div class="control" id="rank-control">
-        <span class="label" id="rank-label">Rank genes by</span>
-        <div class="toggle" role="radiogroup" aria-labelledby="rank-label">
-          <button type="button" data-metric="z" aria-pressed="true">Surprise</button>
-          <button type="button" data-metric="lfc" aria-pressed="false">Fold change</button>
-          <button type="button" data-metric="abs" aria-pressed="false">Absolute change</button>
-        </div>
-      </div>
     </section>
     <p id="dataset-note" class="note"></p>
 
@@ -59,18 +51,30 @@
     </section>
 
     <div class="explain">
-      <p><b>Surprise</b> (z-score): how unusual the change is compared with the gene’s natural
-        cell-to-cell variation in control cells.</p>
-      <p><b>Fold change</b> (log<sub>2</sub> after ÷ before): how much the level moved
-        <i>relative</i> to where it started. Near-silent genes switching on score highest.</p>
-      <p><b>Absolute change</b> (after − before, per cell): how much the level moved in
-        <i>absolute</i> terms. Abundant genes, such as ribosomal proteins, score highest.</p>
-      <p>Fold and absolute changes are approximated from the published per-gene means.</p>
-      <p>Solid bars are significant at FDR <span class="fdr-copy">5%</span> against a null built
-        from the non-targeting control cells (scaled by cell number); faded bars are not.
-        Hover a bar for before → after.
-        <a href="about.html#methods">How these numbers are calculated</a>.</p>
+      <p>Bars show the genes that change <b>significantly</b> (FDR <span class="fdr-copy">5%</span>,
+        against a null built from the non-targeting control cells), ranked by
+        <b>log<sub>2</sub> fold change</b>: how much each gene's level moved relative to where it started.
+        +1 means doubled, −1 halved. Hover a bar for the approximate level per cell before → after.</p>
+      <p><a href="about.html#methods">How these numbers are calculated</a>.</p>
     </div>
+    <section id="enrichment" class="enrichment" hidden>
+      <h2>What do these genes have in common?</h2>
+      <p class="note" id="enrichment-note"></p>
+      <div class="enrich-cols">
+        <div class="enrich-col" id="enrich-up">
+          <h3><span class="dot up"></span>Going up</h3>
+          <ol class="terms"></ol>
+          <button type="button" class="enrichr" data-direction="up">Explore these genes in Enrichr ↗</button>
+        </div>
+        <div class="enrich-col" id="enrich-down">
+          <h3><span class="dot down"></span>Going down</h3>
+          <ol class="terms"></ol>
+          <button type="button" class="enrichr" data-direction="down">Explore these genes in Enrichr ↗</button>
+        </div>
+      </div>
+      <p class="note" id="enrichr-status" aria-live="polite"></p>
+    </section>
+
   </main>
 
   <footer>
