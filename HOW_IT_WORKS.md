@@ -29,7 +29,7 @@ files. That's why it can be hosted free on GitHub Pages.
 
 ## 2. What happens when someone opens the page
 
-1. The browser asks the server for `index.html`.
+1. The browser asks the server for `explorer.html` (the overview, `index.html`, links to it).
 2. Reading it, it finds links to `style.css`, `app.js`, the Google fonts and
    Plotly, and requests each of those.
 3. `app.js` runs. Its `init()` function requests `data/index.json` (the list of
@@ -43,15 +43,19 @@ look at, never the full dataset.
 
 ---
 
-## 3. The three files in `app/`
+## 3. The files in `app/`
+
+Three pages share one stylesheet: `index.html` (overview, the landing page), `explorer.html` (the app)
+and `methods.html` (the long methods text). `about.html` only forwards old links to `methods.html`.
+The explorer itself is three files:
 
 | File | Role | Python-world analogy |
 |---|---|---|
-| `index.html` | **Structure**: what's on the page (title, search box, empty chart box, enrichment panel) | the layout of a figure: which panels exist |
+| `explorer.html` | **Structure**: what's on the page (title, search box, empty chart box, enrichment panel) | the layout of a figure: which panels exist |
 | `style.css` | **Appearance**: colours, fonts, spacing, the look of buttons and panels | a matplotlib style sheet / rcParams |
 | `app.js` | **Behaviour**: download data, react to clicks, draw the chart | your script |
 
-They connect through **ids**. In `index.html`, `<section id="chart">` is the
+They connect through **ids**. In `explorer.html`, `<section id="chart">` is the
 empty box; in `app.js`, `$("chart")` finds it and Plotly draws into it. In
 `style.css`, `.chart { ... }` styles anything with `class="chart"`.
 
@@ -107,7 +111,7 @@ faster, so after a change you may still see the old version. That's why the
 toggle once looked like plain grey buttons: the page was using an old
 `style.css`. Two defences:
 - hard-refresh (Cmd+Shift+R) while developing;
-- in `index.html` the links read `style.css?v=4` and `app.js?v=4`. The browser
+- in the pages the links read e.g. `style.css?v=7` and `app.js?v=5`. The browser
   treats a new `?v=` as a new file, so **bump the number when you change
   those files**, and visitors to the live site get the new version too.
 
@@ -137,7 +141,7 @@ When something looks wrong, paste me the red Console lines.
 Plotly is the charting library (the same project as Python's `plotly`). The page
 loads it from a **CDN** (content delivery network), a public server that hosts
 popular libraries, via the `<script src="https://cdnjs...">` line in
-`index.html`. The version number in that URL must exist, which is what broke the
+`explorer.html`. The version number in that URL must exist, which is what broke the
 first chart (2.35.2 isn't hosted; 2.35.3 is).
 
 ---
