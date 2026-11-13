@@ -228,33 +228,33 @@ function showEnrichment(rec) {
 }
 
 // ---------------------------------------------------------------- 5. Enrichr
-// Enrichr's API: POST the list to /addList, get back a short id, open /enrich?dataset=<id>.
-// The new tab is opened straight away (browsers block pop-ups opened later, after a download),
-// then pointed at the results once Enrichr answers.
-async function openEnrichr(direction) {
+// Enrichr accepts a plain HTML form posted to /enrich (fields "list" and "description")
+// and answers with its results page. Submitting a hidden form into a new tab is an ordinary
+// link-like navigation: no background request, so nothing for the browser's cross-site
+// rules or pop-up blocker to stop. (A first version used fetch() to Enrichr's API and
+// left a blank tab.)
+function openEnrichr(direction) {
   const rec = current;
   const genes = geneList(rec, direction);
-  const tab = window.open("about:blank", "_blank");
-  $("enrichr-status").textContent = "Sending the list to Enrichr…";
-  try {
-    const form = new FormData();                  // like the data= of requests.post
-    form.append("list", genes.join("\n"));
-    form.append("description", `${rec.id} knockdown, genes going ${direction} (Replogle 2022 K562)`);
-    const res = await fetch(`${ENRICHR}/addList`, { method: "POST", body: form });
-    if (!res.ok) throw new Error(res.status);
-    const { shortId } = await res.json();
-    if (tab) tab.location = `${ENRICHR}/enrich?dataset=${shortId}`;
-    else window.open(`${ENRICHR}/enrich?dataset=${shortId}`, "_blank");
-    $("enrichr-status").textContent = "";
-  } catch (err) {
-    // plan B: put the genes on the clipboard and open Enrichr's front page to paste them
-    let copied = false;
-    try { await navigator.clipboard.writeText(genes.join("\n")); copied = true; } catch (e) { /* clipboard blocked */ }
-    if (tab) tab.location = `${ENRICHR}/`;
-    $("enrichr-status").textContent = copied
-      ? "Couldn’t send the list automatically. The genes are on your clipboard: paste them into Enrichr’s box."
-      : `Couldn’t send the list automatically. Paste these genes into Enrichr: ${genes.join(", ")}`;
-  }
+  if (genes.length === 0) return;
+
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = `${ENRICHR}/enrich`;
+  form.target = "_blank";                      // open the results in a new tab
+  form.enctype = "multipart/form-data";
+  const field = (name, value) => {             // a hidden form field
+    const el = document.createElement("textarea");
+    el.name = name;
+    el.value = value;
+    el.hidden = true;
+    form.appendChild(el);
+  };
+  field("list", genes.join("\n"));
+  field("description", `${rec.id} knockdown, genes going ${direction} (Replogle 2022 K562)`);
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
 }
 
 init();
