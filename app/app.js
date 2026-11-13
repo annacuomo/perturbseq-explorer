@@ -18,6 +18,7 @@ const COLORS = {
 };
 const SHOW_PER_SIDE = 20; // bars shown in each direction
 const ENRICHR = "https://maayanlab.cloud/Enrichr";
+const MIN_CHECKED_CELLS = 25; // the smallest control has 25 cells: below this the test is unchecked
 
 // ---------------------------------------------------------------- state
 // "let" = a variable that can change. These hold what the page currently shows.
@@ -83,6 +84,7 @@ async function select(query) {
   if (!entry) {
     showMessage(`No perturbation called “${query}” in this screen.`);
     $("summary").hidden = true;
+    $("few-cells").hidden = true;
     $("enrichment").hidden = true;
     return;
   }
@@ -100,6 +102,7 @@ function showSummary(rec) {
     rec.knockdown_z != null ? `z ${rec.knockdown_z.toFixed(1)}` : "n/a";
   $("stat-sig").textContent = rec.n_sig == null ? "n/a" : rec.n_sig.toLocaleString();
   $("stat-cells").textContent = rec.n_cells == null ? "n/a" : rec.n_cells.toLocaleString();
+  $("few-cells").hidden = !(rec.n_cells != null && rec.n_cells < MIN_CHECKED_CELLS);
 }
 
 // The genes behind the chart: significant ones only, ranked by fold change.

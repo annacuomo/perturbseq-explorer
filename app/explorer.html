@@ -13,10 +13,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
   <!-- ?v=… makes the browser fetch a fresh copy after a change: bump it when you edit these files -->
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
   <!-- Plotly: the charting library, loaded from a public CDN. "defer" = run after the page is parsed -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly-basic.min.js" defer></script>
-  <script src="app.js?v=5" defer></script>
+  <script src="app.js?v=6" defer></script>
 </head>
 <body>
   <!-- Same header on every page: edit all three (index.html, explorer.html, methods.html) together.
@@ -50,6 +50,9 @@
       <div class="stat"><span class="stat-value" id="stat-sig">–</span><span class="stat-label">genes significantly changed (FDR <span id="fdr">5%</span>)</span></div>
       <div class="stat"><span class="stat-value" id="stat-cells">–</span><span class="stat-label">cells</span></div>
     </section>
+    <p id="few-cells" class="warning" hidden>Only a few cells were measured for this knockdown, fewer than any
+      control used to check the test, so treat the significance calls with extra caution.
+      <a href="methods.html#checks">Why</a></p>
 
     <section id="chart" class="chart" aria-live="polite">
       <p class="placeholder">Pick a perturbation above to see its top affected genes.</p>

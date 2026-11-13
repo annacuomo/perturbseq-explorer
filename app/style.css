@@ -200,3 +200,6 @@ button.enrichr:disabled { opacity: 0.5; cursor: not-allowed; }
 .dataset-links a { font-weight: 600; }
 .muted-note { color: var(--muted); font-size: 0.9rem; }
 .next { padding-left: 1.2em; }
+
+/* Shown on the explorer for knockdowns with very few cells */
+.warning { background: #FDF3D6; border-left: 4px solid var(--mustard); border-radius: 8px; padding: 10px 14px; font-size: 0.9rem; margin: 12px 0 0; }

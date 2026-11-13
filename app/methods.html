@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
@@ -141,10 +141,17 @@
 
     <h2 id="checks">Checks</h2>
     <p><b>Controls should show nothing.</b> Each control row in turn was tested against a reference built
-      from the other 108. Most controls get no genes called (median 0), but the worst gets 41.</p>
+      from the other 108. Most controls get no genes called (median 0); the average is under 2 genes, and false
+      calls do not depend on the number of cells (Spearman correlation −0.01; controls range from 25 to 241
+      cells).</p>
+    <p>The exception is one control with 41 calls. Its changes are coherent rather than random: blood-lineage
+      genes such as <i>LST1</i>, <i>AIF1</i>, <i>LCP1</i> and <i>GP1BB</i> go up and <i>APOE</i> goes down.
+      That looks like a real effect, either a "non-targeting" guide that does act somewhere or a shift in cell
+      state in that group of cells, not a failure of the test. It is kept in the reference, which if anything
+      makes the test slightly more cautious.</p>
     <p><b>Agreement with the paper.</b> The paper counted changed genes per perturbation with its own test on
       single cells (Anderson-Darling). Across all perturbations, the two counts rank almost identically
-      (Spearman correlation 0.96), but ours are higher (median 84 genes against 62). The gap is concentrated in
+      (Spearman correlation 0.96), but ours are higher (median 84 genes against 62). The gap is largest for
       perturbations with few cells:</p>
     <div class="table-wrap">
       <table class="num">
@@ -157,10 +164,17 @@
         </tbody>
       </table>
     </div>
-    <p>The likely cause: averaged over only a few cells, a sparsely expressed gene's value is far from normally
-      distributed, so the normal test underestimates how often extreme values arise by chance. This is being
-      checked (<code>pipeline/04_check_null.py</code>); until then, treat calls for perturbations with fewer than
-      about 50 cells with caution.</p>
+    <p>An obvious suspect was the test itself: averaged over only a few cells, a sparsely expressed gene is far
+      from normally distributed, so the normal test could call too many genes. The checks
+      (<a href="https://github.com/annacuomo/perturbseq-explorer/blob/main/pipeline/04_check_null.py"><code>pipeline/04_check_null.py</code></a>)
+      do not support this. Controls with few cells get no more false calls than others, and in perturbations
+      with few cells, sparsely expressed genes are called <i>less</i> often than abundant ones, as they are at
+      every cell count.</p>
+    <p>A more likely explanation is power. The paper's test compares single cells, and with a few dozen cells
+      it has little to work with. The test here compares averages against a noise estimate pooled across all
+      109 controls, which is more sensitive with small groups. This is a reading of the evidence, not a proof.</p>
+    <p>One gap remains: 64 perturbations have fewer than 25 cells, below the smallest control, so the checks do
+      not cover them. Their calls are flagged on the explorer.</p>
 
     <h3>Known limitations</h3>
     <ul>
