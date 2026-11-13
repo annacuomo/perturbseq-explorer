@@ -28,6 +28,27 @@ FIGSHARE_FILES = {
 }
 
 
+# Gene set libraries for enrichment, as plain-text files from Enrichr's library
+# download endpoint (one set per line: TERM<tab><tab>GENE<tab>GENE...).
+# Hallmark: 50 well-defined processes (MSigDB). GO BP: thousands of finer terms.
+GENESET_LIBRARIES = ["MSigDB_Hallmark_2020", "GO_Biological_Process_2023"]
+ENRICHR_LIBRARY_URL = "https://maayanlab.cloud/Enrichr/geneSetLibrary?mode=text&libraryName={}"
+
+
+def download_genesets(out_dir: Path) -> None:
+    out_dir = out_dir / "genesets"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name in GENESET_LIBRARIES:
+        dest = out_dir / f"{name}.txt"
+        if dest.exists():
+            print(f"{dest} already exists, skipping")
+            continue
+        r = requests.get(ENRICHR_LIBRARY_URL.format(name), timeout=120)
+        r.raise_for_status()
+        dest.write_text(r.text)
+        print(f"Saved {name}: {len(r.text.splitlines())} gene sets -> {dest}")
+
+
 def download(dataset: str, out_dir: Path) -> Path:
     filename, file_id = FIGSHARE_FILES[dataset]
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -55,5 +76,10 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--dataset", choices=FIGSHARE_FILES, default="K562_essential")
     p.add_argument("--out", type=Path, default=Path("raw"))
+    p.add_argument("--genesets", action="store_true",
+                   help="download the gene set libraries for enrichment instead of a dataset")
     args = p.parse_args()
-    download(args.dataset, args.out)
+    if args.genesets:
+        download_genesets(args.out)
+    else:
+        download(args.dataset, args.out)

@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
@@ -94,26 +94,19 @@
       The target's own column is then removed before any testing, so a perturbation never looks significant
       just because its own target went down.</p>
 
-    <h3>4. Three ways to rank affected genes</h3>
-    <p>The same change can be large on one scale and small on another, so the explorer stores three
-      rankings and lets you switch between them.</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Ranking</th><th>What it measures</th><th>Favours</th></tr></thead>
-        <tbody>
-          <tr><td>Surprise</td><td>Change in units of control cell-to-cell noise (the file's own value, \(z\))</td><td>Quiet, tightly regulated genes</td></tr>
-          <tr><td>Fold change</td><td>Approximate log<sub>2</sub> fold change</td><td>Genes that change a lot relative to their level, including near-silent genes switching on</td></tr>
-          <tr><td>Absolute change</td><td>Approximate change in expression per cell</td><td>Highly expressed genes, such as ribosomal proteins</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>Fold and absolute change are reconstructed by undoing the z-scaling with each gene's control mean
-      \(\mu_g\) and standard deviation \(\sigma_g\), using a pseudocount \(c = 0.1\):</p>
+    <h3>4. Which genes are shown: significant, ranked by fold change</h3>
+    <p>The chart shows only genes that change significantly (step 5), ranked by approximate
+      log<sub>2</sub> fold change: up to 20 going up and 20 going down. Fold change is the scale biologists
+      read first (+1 means doubled, −1 halved), and requiring significance keeps out noisy, barely expressed
+      genes that can show large fold changes by chance.</p>
+    <p>The file stores \(z\), not fold change, so fold change is reconstructed by undoing the z-scaling with
+      each gene's control mean \(\mu_g\) and standard deviation \(\sigma_g\), using a pseudocount
+      \(c = 0.1\):</p>
     <p class="math">\[ \text{after}_g = \max(0,\ \mu_g + z_g\,\sigma_g), \qquad
-      \text{lfc}_g = \log_2 \frac{\text{after}_g + c}{\mu_g + c}, \qquad
-      \text{abs}_g = \text{after}_g - \mu_g \]</p>
-    <p>These are approximations: they assume one mean and one standard deviation describe the control cells
-      for each gene, while the authors normalised each sequencing batch separately.</p>
+      \text{lfc}_g = \log_2 \frac{\text{after}_g + c}{\mu_g + c} \]</p>
+    <p>This is an approximation: it assumes one mean and one standard deviation describe the control cells
+      for each gene, while the authors normalised each sequencing batch separately. Hovering a bar shows the
+      approximate level per cell before and after, and the original \(z\) value.</p>
 
     <h3>5. Which changes are significant</h3>
     <p>Each row is an average over \(n\) cells, so its noise shrinks as \(1/n\). The control rows, each also an
@@ -126,15 +119,33 @@
     <p>compared with a standard normal distribution (two-sided). P-values are corrected with
       Benjamini-Hochberg across genes within each perturbation, and a gene is called changed at a 5% false
       discovery rate. A floor at the 1st percentile of the variances stops near-constant genes from producing
-      huge statistics. On the explorer, significant genes are drawn as solid bars and the rest as faded bars.</p>
+      huge statistics. Only significant genes appear on the chart.</p>
     <p class="why">Why this test: it needs only the published summary file, not the single cells, and it takes
       the number of cells into account, so a small shift seen in many cells and a large shift seen in a few
       are judged on the same scale.</p>
 
-    <h3>6. What is sent to the browser</h3>
-    <p>For each perturbation, the top 30 genes up and the top 30 down under each of the three rankings,
-      merged, with all three values and a significance flag. Each file is a few kilobytes, and the page can
-      re-rank without downloading anything else.</p>
+    <h3>6. What the genes have in common: gene set enrichment</h3>
+    <p>For each perturbation, the top 100 significant genes going up (and, separately, going down) are
+      tested against two collections of gene sets: the 50 MSigDB Hallmark sets
+      (<a href="https://doi.org/10.1016/j.cels.2015.12.004">Liberzon et al. 2015</a>) and Gene Ontology
+      biological processes, both as distributed by
+      <a href="https://maayanlab.cloud/Enrichr/">Enrichr</a>. Sets with fewer than 10 or more than 500 measured
+      genes are skipped.</p>
+    <p>The test is a hypergeometric (one-sided Fisher) test. For a list of \(N\) genes, a gene set with
+      \(n\) measured genes and an overlap of \(k\), out of \(M\) measured genes in total:</p>
+    <p class="math">\[ p = P(K \ge k), \qquad K \sim \text{Hypergeometric}(M,\ n,\ N) \]</p>
+    <p>P-values are corrected with Benjamini-Hochberg across all gene sets tested for that list. The page
+      shows up to five sets with q &lt; 0.05 and at least three genes in common.</p>
+    <p class="why">Why the background matters: the background is the 8,563 genes measured in this screen, not
+      the whole genome. Measured genes are expressed in K562, so against the whole genome almost any
+      "expressed in blood cells" gene set would look enriched.</p>
+    <p>The <b>Explore in Enrichr</b> buttons send the same lists to the Enrichr website, which tests them
+      against many more libraries. Enrichr uses its own background (all genes in each library), so its
+      p-values are not the same as the ones shown here.</p>
+
+    <h3>7. What is sent to the browser</h3>
+    <p>For each perturbation, the top 30 significant genes in each direction for the chart, the two
+      100-gene lists, and the enrichment results. Each file is a few kilobytes.</p>
 
     <h2 id="checks">Checks</h2>
     <p><b>Controls should show nothing.</b> Each control row in turn was tested against a reference built
@@ -162,8 +173,10 @@
     <h3>Known limitations</h3>
     <ul>
       <li>The test ignores batch structure, and any change in a gene's variance caused by the perturbation itself.</li>
-      <li>With hundreds of cells, significant is not the same as large: check fold change and absolute change
-        before reading biology into a significant gene.</li>
+      <li>With hundreds of cells, significant is not the same as large: a significant gene can still have a
+        small fold change.</li>
+      <li>Enrichment of the top 100 genes favours strong, coherent programmes; a subtle shift spread across many
+        genes can be missed.</li>
       <li>Fold changes are reconstructed from the summary file, not measured from counts.</li>
     </ul>
 
