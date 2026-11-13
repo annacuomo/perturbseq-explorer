@@ -1,0 +1,190 @@
+<!doctype html>
+<!--
+  methods.html: a plain reading page (no app.js). It shares style.css with the other pages;
+  the extra styles for long text are under "About page" in style.css.
+  Formulas are written in TeX between \( \) or \[ \] and drawn by KaTeX in the browser.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Methods | Perturb-seq Explorer</title>
+  <meta name="description" content="Exactly how the Perturb-seq Explorer's numbers are calculated, and how they were checked.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body)"></script>
+</head>
+<body>
+  <!-- Same header on every page: edit all three (index.html, explorer.html, methods.html) together.
+       The thin bar is the way OUT, to Anna's website; the tabs move WITHIN this site. -->
+  <div class="site-bar">
+    <a class="back-link" href="https://annacuomo.github.io/projects/">← Anna Cuomo · all projects</a>
+  </div>
+  <header>
+    <nav class="tabs" aria-label="Perturb-seq Explorer pages">
+      <a href="index.html">Overview</a>
+      <a href="explorer.html">Explorer</a>
+      <a href="methods.html" aria-current="page">Methods</a>
+    </nav>
+    <h1>Methods</h1>
+    <p class="lede">Exactly how the numbers are calculated, and how they were checked.
+      For a lighter introduction, start with the <a href="index.html">overview</a>.</p>
+    <p class="toc">
+      <a href="#data">The data</a> · <a href="#methods">Methods</a> · <a href="#checks">Checks</a> ·
+      <a href="#source">Source</a>
+    </p>
+  </header>
+
+  <main class="prose">
+    <h2 id="data">The data</h2>
+    <p>The explorer shows the <b>K562 essential-gene screen</b> from
+      <a href="https://doi.org/10.1016/j.cell.2022.05.013">Replogle et al. (2022, <i>Cell</i>)</a>:
+      2,176 CRISPRi knockdowns covering 2,062 genes, each compared with unperturbed control cells
+      across 8,563 measured genes.</p>
+
+    <p><b>The experiment.</b> Perturb-seq pairs a pooled CRISPR screen with single-cell RNA-seq. Each cell
+      receives a guide RNA that knocks down one gene, and its whole transcriptome is read out together with
+      the identity of that guide. One experiment therefore measures the downstream effects of thousands of
+      knockdowns at once.</p>
+
+    <p><b>This screen.</b> K562 is a chronic myeloid leukaemia cell line. The library targeted about 2,000
+      genes that are essential for growth across many cell lines, using CRISPR interference (CRISPRi), which
+      silences a gene without cutting DNA. Some genes were targeted at two alternative start sites; these
+      appear as separate entries, such as GAPDH_P1 and GAPDH_P2. The same study also ran a genome-wide K562
+      screen and an essential-gene screen in RPE1 cells, which are not shown here yet.</p>
+
+    <p><b>What the explorer starts from.</b> Not raw cells, but the authors' published per-perturbation
+      summary: for each knockdown, the average expression of every gene across its cells, scaled against
+      control cells. A typical perturbation averages 116 cells (range 5 to 1,996).</p>
+
+    <h2 id="methods">Methods</h2>
+    <p>Everything below is computed once, offline, by
+      <a href="https://github.com/annacuomo/perturbseq-explorer/blob/main/pipeline/03_summarise.py"><code>pipeline/03_summarise.py</code></a>.
+      The website itself does no statistics: it only draws the small files that script writes.</p>
+
+    <h3>1. Starting point: the authors' normalised pseudobulk</h3>
+    <p>The input file has one row per perturbation and one column per measured gene. Each value is the
+      mean, over that perturbation's cells, of expression z-normalised against non-targeting control cells.
+      A value of +1 means "on average, one control standard deviation above the control mean". The file also
+      gives, for each gene, the control mean and standard deviation, and, for each perturbation, the number of
+      cells and the target gene's remaining expression.</p>
+    <p class="why">Why: this is the authors' own normalisation, so the explorer starts from the same numbers
+      as the paper, and the file is small enough to process on a laptop.</p>
+
+    <h3>2. Controls and perturbations</h3>
+    <p>The 109 non-targeting control rows are set aside as the reference; the remaining 2,176 rows are
+      perturbations. Genes targeted at two start sites keep one row per site rather than being merged,
+      because the two guides can knock down the gene by different amounts.</p>
+
+    <h3>3. Knockdown of the target</h3>
+    <p>Knockdown = 100 × (1 − remaining expression), the reduction in the target gene relative to controls.
+      The target's own column is then removed before any testing, so a perturbation never looks significant
+      just because its own target went down.</p>
+
+    <h3>4. Which genes are shown: significant, ranked by fold change</h3>
+    <p>The chart shows only genes that change significantly (step 5), ranked by approximate
+      log<sub>2</sub> fold change: up to 20 going up and 20 going down. Fold change is the scale biologists
+      read first (+1 means doubled, −1 halved), and requiring significance keeps out noisy, barely expressed
+      genes that can show large fold changes by chance.</p>
+    <p>The file stores \(z\), not fold change, so fold change is reconstructed by undoing the z-scaling with
+      each gene's control mean \(\mu_g\) and standard deviation \(\sigma_g\), using a pseudocount
+      \(c = 0.1\):</p>
+    <p class="math">\[ \text{after}_g = \max(0,\ \mu_g + z_g\,\sigma_g), \qquad
+      \text{lfc}_g = \log_2 \frac{\text{after}_g + c}{\mu_g + c} \]</p>
+    <p>This is an approximation: it assumes one mean and one standard deviation describe the control cells
+      for each gene, while the authors normalised each sequencing batch separately. Hovering a bar shows the
+      approximate level per cell before and after, and the original \(z\) value.</p>
+
+    <h3>5. Which changes are significant</h3>
+    <p>Each row is an average over \(n\) cells, so its noise shrinks as \(1/n\). The control rows, each also an
+      average of a known number of cells, give an estimate of the single-cell variance of every gene \(g\):</p>
+    <p class="math">\[ \hat{s}^2_g = \frac{1}{C-1} \sum_{c=1}^{C} n_c\,(x_{cg} - \mu_g)^2 \]</p>
+    <p>where \(C = 109\) is the number of control rows, \(n_c\) the number of cells in control row \(c\) and
+      \(\mu_g\) the mean over control rows. A perturbation \(p\) measured in \(n_p\) cells then gets a test
+      statistic</p>
+    <p class="math">\[ t_{pg} = \frac{x_{pg} - \mu_g}{\sqrt{\hat{s}^2_g / n_p}} \]</p>
+    <p>compared with a standard normal distribution (two-sided). P-values are corrected with
+      Benjamini-Hochberg across genes within each perturbation, and a gene is called changed at a 5% false
+      discovery rate. A floor at the 1st percentile of the variances stops near-constant genes from producing
+      huge statistics. Only significant genes appear on the chart.</p>
+    <p class="why">Why this test: it needs only the published summary file, not the single cells, and it takes
+      the number of cells into account, so a small shift seen in many cells and a large shift seen in a few
+      are judged on the same scale.</p>
+
+    <h3>6. What the genes have in common: gene set enrichment</h3>
+    <p>For each perturbation, the top 100 significant genes going up (and, separately, going down) are
+      tested against two collections of gene sets: the 50 MSigDB Hallmark sets
+      (<a href="https://doi.org/10.1016/j.cels.2015.12.004">Liberzon et al. 2015</a>) and Gene Ontology
+      biological processes, both as distributed by
+      <a href="https://maayanlab.cloud/Enrichr/">Enrichr</a>. Sets with fewer than 10 or more than 500 measured
+      genes are skipped.</p>
+    <p>The test is a hypergeometric (one-sided Fisher) test. For a list of \(N\) genes, a gene set with
+      \(n\) measured genes and an overlap of \(k\), out of \(M\) measured genes in total:</p>
+    <p class="math">\[ p = P(K \ge k), \qquad K \sim \text{Hypergeometric}(M,\ n,\ N) \]</p>
+    <p>P-values are corrected with Benjamini-Hochberg across all gene sets tested for that list. The page
+      shows up to five sets with q &lt; 0.05 and at least three genes in common.</p>
+    <p class="why">Why the background matters: the background is the 8,563 genes measured in this screen, not
+      the whole genome. Measured genes are expressed in K562, so against the whole genome almost any
+      "expressed in blood cells" gene set would look enriched.</p>
+    <p>The <b>Explore in Enrichr</b> buttons send the same lists to the Enrichr website, which tests them
+      against many more libraries. Enrichr uses its own background (all genes in each library), so its
+      p-values are not the same as the ones shown here.</p>
+
+    <h3>7. What is sent to the browser</h3>
+    <p>For each perturbation, the top 30 significant genes in each direction for the chart, the two
+      100-gene lists, and the enrichment results. Each file is a few kilobytes.</p>
+
+    <h2 id="checks">Checks</h2>
+    <p><b>Controls should show nothing.</b> Each control row in turn was tested against a reference built
+      from the other 108. Most controls get no genes called (median 0), but the worst gets 41.</p>
+    <p><b>Agreement with the paper.</b> The paper counted changed genes per perturbation with its own test on
+      single cells (Anderson-Darling). Across all perturbations, the two counts rank almost identically
+      (Spearman correlation 0.96), but ours are higher (median 84 genes against 62). The gap is concentrated in
+      perturbations with few cells:</p>
+    <div class="table-wrap">
+      <table class="num">
+        <thead><tr><th>Cells per perturbation</th><th>Perturbations</th><th>Correlation</th><th>Median genes called, here</th><th>Median genes called, paper</th></tr></thead>
+        <tbody>
+          <tr><td>fewer than 50</td><td>254</td><td>0.85</td><td>55</td><td>10.5</td></tr>
+          <tr><td>50 to 99</td><td>601</td><td>0.95</td><td>64</td><td>43</td></tr>
+          <tr><td>100 to 199</td><td>947</td><td>0.96</td><td>50</td><td>40</td></tr>
+          <tr><td>200 or more</td><td>374</td><td>0.97</td><td>1,752</td><td>1,520</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The likely cause: averaged over only a few cells, a sparsely expressed gene's value is far from normally
+      distributed, so the normal test underestimates how often extreme values arise by chance. This is being
+      checked (<code>pipeline/04_check_null.py</code>); until then, treat calls for perturbations with fewer than
+      about 50 cells with caution.</p>
+
+    <h3>Known limitations</h3>
+    <ul>
+      <li>The test ignores batch structure, and any change in a gene's variance caused by the perturbation itself.</li>
+      <li>With hundreds of cells, significant is not the same as large: a significant gene can still have a
+        small fold change.</li>
+      <li>Enrichment of the top 100 genes favours strong, coherent programmes; a subtle shift spread across many
+        genes can be missed.</li>
+      <li>Fold changes are reconstructed from the summary file, not measured from counts.</li>
+    </ul>
+
+    <h2 id="source">Source and licence</h2>
+    <p>Data: Replogle &amp; Weissman, Figshare+,
+      <a href="https://doi.org/10.25452/figshare.plus.20029387">doi:10.25452/figshare.plus.20029387</a>
+      (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), file
+      <code>K562_essential_normalized_bulk_01.h5ad</code>. Please cite
+      <a href="https://doi.org/10.1016/j.cell.2022.05.013">Replogle et al. 2022</a> if you use these data.</p>
+    <p>Code: <a href="https://github.com/annacuomo/perturbseq-explorer">github.com/annacuomo/perturbseq-explorer</a>
+      (MIT licence).</p>
+  </main>
+
+  <footer>
+    Built by <a href="https://annacuomo.github.io">Anna Cuomo</a> ·
+    <a href="explorer.html">Open the explorer</a>
+  </footer>
+</body>
+</html>

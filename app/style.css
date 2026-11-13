@@ -27,7 +27,7 @@ header, main, footer {
   padding: 0 16px;
 }
 
-header { padding-top: 48px; }
+
 
 h1 {
   font-family: "Fraunces", Georgia, serif;
@@ -117,14 +117,21 @@ footer {
 }
 a { color: var(--teal); }
 
-/* ---------- Page links at the top (both pages) ---------- */
-.top-nav { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-bottom: 20px; font-size: 0.95rem; }
-.top-nav a { color: var(--ink); text-decoration: none; font-weight: 600; padding: 4px 0; }
-.top-nav a:hover, .top-nav a[aria-current="page"] {
-  color: var(--teal);
-  text-decoration: underline; text-decoration-color: var(--mustard);
-  text-decoration-thickness: 3px; text-underline-offset: 6px;
+/* ---------- Top of every page ---------- */
+/* The thin bar: the way OUT, back to Anna's website. Quiet, full width, above everything. */
+.site-bar { background: #F1ECE3; border-bottom: 1px solid var(--border); }
+.site-bar .back-link {
+  display: block; max-width: 960px; margin: 0 auto; padding: 8px 16px;
+  font-size: 0.85rem; color: var(--muted); text-decoration: none;
 }
+.site-bar .back-link:hover { color: var(--teal); text-decoration: underline; }
+header { padding-top: 28px; }
+
+/* The tabs: pages WITHIN this site. */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px 24px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+.tabs a { color: var(--ink); text-decoration: none; font-weight: 600; padding: 8px 0 10px; margin-bottom: -1px; border-bottom: 3px solid transparent; }
+.tabs a:hover { color: var(--teal); }
+.tabs a[aria-current="page"] { color: var(--teal); border-bottom-color: var(--mustard); }
 
 /* ---------- About page: long text ---------- */
 .toc { font-size: 0.95rem; margin: -16px 0 24px; }
@@ -171,3 +178,25 @@ button.enrichr {
 button.enrichr:hover:not(:disabled) { background: #EEF6F6; }
 button.enrichr:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 button.enrichr:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- Overview page ---------- */
+.cta {
+  display: inline-block; background: var(--teal); color: #fff; font-weight: 600;
+  text-decoration: none; padding: 10px 18px; border-radius: 10px; margin: -12px 0 8px;
+}
+.cta:hover { background: #155961; }
+.cta:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
+.infographic { margin: 24px 0; }
+.infographic img { max-width: 100%; height: auto; display: block; }
+.dataset { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 8px 0 12px; }
+.dataset-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dataset-head h3 { margin: 0; }
+.pill { font-size: 0.75rem; font-weight: 600; background: var(--teal-light); color: var(--ink); border-radius: 999px; padding: 2px 10px; }
+.dataset > p { margin: 10px 0; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 14px 0; }
+.facts div { background: var(--bg); border-radius: 8px; padding: 10px 12px; }
+.facts dt { font-family: "Fraunces", Georgia, serif; font-size: 1.4rem; color: var(--plum); }
+.facts dd { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.dataset-links a { font-weight: 600; }
+.muted-note { color: var(--muted); font-size: 0.9rem; }
+.next { padding-left: 1.2em; }

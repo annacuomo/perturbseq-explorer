@@ -1,86 +1,102 @@
 <!doctype html>
 <!--
-  index.html: the STRUCTURE of the page (what's on it).
-  style.css:  how it LOOKS.     app.js: what it DOES.
-  The browser loads this file first, then fetches everything it links to.
+  index.html: the landing page. An overview of the data, with links to the
+  explorer (explorer.html) and the methods (methods.html). No app.js here.
+  To add a dataset: copy one <article class="dataset"> block below and edit it.
 -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Perturb-seq Explorer</title>
+  <meta name="description" content="Browse genome-scale CRISPRi Perturb-seq screens in the browser: which genes respond when one is knocked down, and what they have in common.">
+  <script>
+    // Old links pointed at the explorer on this address, e.g. .../perturbseq-explorer/#BORA.
+    // If the address has a gene after #, send it on to the explorer page.
+    if (location.hash.length > 1) location.replace("explorer.html" + location.hash);
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
-  <!-- ?v=… makes the browser fetch a fresh copy after a change: bump it when you edit these files -->
-  <link rel="stylesheet" href="style.css?v=6">
-  <!-- Plotly: the charting library, loaded from a public CDN. "defer" = run after the page is parsed -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly-basic.min.js" defer></script>
-  <script src="app.js?v=5" defer></script>
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
+  <!-- Same header on every page: edit all three (index.html, explorer.html, methods.html) together.
+       The thin bar is the way OUT, to Anna's website; the tabs move WITHIN this site. -->
+  <div class="site-bar">
+    <a class="back-link" href="https://annacuomo.github.io/projects/">← Anna Cuomo · all projects</a>
+  </div>
   <header>
-    <nav class="top-nav" aria-label="Pages">
-      <a href="./" aria-current="page">Explorer</a>
-      <a href="about.html">About &amp; methods</a>
-      <a href="https://annacuomo.github.io/projects/">More projects</a>
+    <nav class="tabs" aria-label="Perturb-seq Explorer pages">
+      <a href="index.html" aria-current="page">Overview</a>
+      <a href="explorer.html">Explorer</a>
+      <a href="methods.html">Methods</a>
     </nav>
     <h1>Perturb-seq Explorer</h1>
-    <p class="lede">Knock down a gene with CRISPRi. Which other genes respond?</p>
+    <p class="lede">Knock down a gene with CRISPRi. Which other genes respond, and what do they have in common?</p>
+    <p><a class="cta" href="explorer.html">Open the explorer →</a></p>
   </header>
 
-  <main>
-    <section class="controls">
-      <div class="control">
-        <label for="search">Perturbed gene</label>
-        <input id="search" list="perturbation-list" placeholder="Type a gene, e.g. GATA1" autocomplete="off">
-        <datalist id="perturbation-list"></datalist>
+  <main class="prose">
+    <h2 id="what">What is Perturb-seq?</h2>
+    <p>Perturb-seq pairs a pooled CRISPR screen with single-cell RNA-seq. Each cell receives a guide RNA that
+      switches off one gene, and its whole transcriptome is read out together with the identity of that guide.
+      One experiment therefore measures what happens to every other gene when each of thousands of genes is
+      knocked down.</p>
+    <p>This site turns the published results into something you can browse: pick a gene, see which genes
+      respond most, and which pathways those responding genes share.</p>
+
+    <!-- Infographic slot. Save the image as app/images/overview.png (transparent background works best),
+         then remove the comment markers around the <figure> below.
+    <figure class="infographic">
+      <img src="images/overview.png" alt="How Perturb-seq works: guide RNAs knock down one gene per cell; single-cell RNA-seq reads out the response.">
+    </figure>
+    -->
+
+    <h2 id="datasets">Datasets</h2>
+    <article class="dataset">
+      <div class="dataset-head">
+        <h3>K562, essential genes</h3>
+        <span class="pill">CRISPRi</span>
       </div>
+      <p>Knockdowns of about 2,000 genes that are essential for growth, in K562, a chronic myeloid leukaemia cell
+        line. From <a href="https://doi.org/10.1016/j.cell.2022.05.013">Replogle et al. 2022, <i>Cell</i></a>.</p>
+      <dl class="facts">
+        <div><dt>2,176</dt><dd>knockdowns</dd></div>
+        <div><dt>2,062</dt><dd>genes targeted</dd></div>
+        <div><dt>8,563</dt><dd>genes measured</dd></div>
+        <div><dt>116</dt><dd>cells per knockdown (median)</dd></div>
+      </dl>
+      <p class="dataset-links"><a href="explorer.html">Explore this dataset →</a></p>
+    </article>
+    <p class="muted-note">More datasets will be added over time.</p>
 
-    </section>
-    <p id="dataset-note" class="note"></p>
+    <h2 id="reading">Reading the results</h2>
+    <ul>
+      <li><b>Knockdown is not knockout.</b> The median knockdown is 83%, but 238 perturbations reduced
+        their target by less than half. Check the knockdown figure before reading anything downstream.</li>
+      <li><b>Many knockdowns change little.</b> 78 perturbations have no significantly changed gene. That is
+        often the true answer, not a fault of the page.</li>
+      <li><b>Few cells, less trust.</b> Perturbations measured in fewer than about 50 cells are noisier, and
+        the significance calls for them are probably too generous (see <a href="methods.html#checks">Checks</a>).</li>
+      <li><b>Downstream is not direct.</b> A changed gene may sit several regulatory steps away from the
+        one knocked down.</li>
+      <li><b>One cancer cell line, one time point.</b> Effects may differ in other cell types, or at other
+        times after knockdown.</li>
+    </ul>
 
-    <section id="summary" class="summary" hidden>
-      <div class="stat"><span class="stat-value" id="stat-knockdown">–</span><span class="stat-label">target knockdown</span></div>
-      <div class="stat"><span class="stat-value" id="stat-sig">–</span><span class="stat-label">genes significantly changed (FDR <span id="fdr">5%</span>)</span></div>
-      <div class="stat"><span class="stat-value" id="stat-cells">–</span><span class="stat-label">cells</span></div>
-    </section>
-
-    <section id="chart" class="chart" aria-live="polite">
-      <p class="placeholder">Pick a perturbation above to see its top affected genes.</p>
-    </section>
-
-    <div class="explain">
-      <p>Bars show the genes that change <b>significantly</b> (FDR <span class="fdr-copy">5%</span>,
-        against a null built from the non-targeting control cells), ranked by
-        <b>log<sub>2</sub> fold change</b>: how much each gene's level moved relative to where it started.
-        +1 means doubled, −1 halved. Hover a bar for the approximate level per cell before → after.</p>
-      <p><a href="about.html#methods">How these numbers are calculated</a>.</p>
-    </div>
-    <section id="enrichment" class="enrichment" hidden>
-      <h2>What do these genes have in common?</h2>
-      <p class="note" id="enrichment-note"></p>
-      <div class="enrich-cols">
-        <div class="enrich-col" id="enrich-up">
-          <h3><span class="dot up"></span>Going up</h3>
-          <ol class="terms"></ol>
-          <button type="button" class="enrichr" data-direction="up">Explore these genes in Enrichr ↗</button>
-        </div>
-        <div class="enrich-col" id="enrich-down">
-          <h3><span class="dot down"></span>Going down</h3>
-          <ol class="terms"></ol>
-          <button type="button" class="enrichr" data-direction="down">Explore these genes in Enrichr ↗</button>
-        </div>
-      </div>
-      <p class="note" id="enrichr-status" aria-live="polite"></p>
-    </section>
-
+    <h2 id="next">Where to go next</h2>
+    <ul class="next">
+      <li><a href="explorer.html"><b>Explorer</b></a>: pick a knocked-down gene and see its effects.</li>
+      <li><a href="methods.html"><b>Methods</b></a>: exactly how the numbers are calculated, and how they were checked.</li>
+      <li><a href="https://github.com/annacuomo/perturbseq-explorer"><b>Code</b></a>: the Python pipeline and this website.</li>
+    </ul>
   </main>
 
   <footer>
     Data: <a href="https://doi.org/10.1016/j.cell.2022.05.013">Replogle et al. 2022, <i>Cell</i></a>,
     processed files from <a href="https://doi.org/10.25452/figshare.plus.20029387">Figshare+</a>
-    (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>), summarised for this site.
+    (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>).
     Built by <a href="https://annacuomo.github.io">Anna Cuomo</a>.
   </footer>
 </body>
